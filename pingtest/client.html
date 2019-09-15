@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chaat</title>
+
+<script type="text/javascript">
+
+    window.onload = function () {
+        const output = document.getElementById("output");
+
+        function writeToDiv(div, text) {
+            const textDiv = document.createElement("div");
+            textDiv.textContent = text;
+            div.appendChild(textDiv);
+        }
+
+
+        writeToDiv(output, "starting ping test")
+        if (window["WebSocket"]) {
+            const conn = new WebSocket("ws://" + document.location.host + "/ws");
+
+            //On receiving a message over the WebSocket, display it
+            conn.onmessage = event => {
+                // const data = JSON.parse(event.data);
+                writeToDiv(output, event.data);
+            };
+
+            conn.onopen = () => {
+                writeToDiv(output, "opened websocket");
+                conn.send("PING");
+            };
+
+            conn.onclose = () => {
+                writeToDiv(output, "closed websocket");
+            };
+
+            // const msg = Object();
+            // msg.msg = "Ping";
+            // conn.send(JSON.stringify(msg));
+        }
+    };
+
+</script>
+
+
+</head>
+
+<body>
+
+    <h1>Ping Test</h1>
+
+    <div id="output"></div>
+
+</body>
+</html>
+
+
+
+
+
+
+
+

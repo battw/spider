@@ -1,0 +1,29 @@
+* Spider
+Provides a websocket network for communication between web browsers.
+
+** Design 
+*** SpiderFoot
+At the browser end, all websocket network setup and operation is encapsulated in a SpidersFoot object.
+- getIds(): The ids of the other connected clients
+- sendMessage(to : id, message) : error for non existent receivers (to)
+- registerReceiver(callback_function)
+  - receiveMessage(from : id, message)  the callback function signature.
+*** spider
+The serverside implementation of the websocket network.
+- spider.Hatch()
+- GrowLeg(*websocket.Conn)
+
+**** spider.body
+Creates and manages connections, and routes traffic.
+- body.Hatch() : controlChannel (A channel for controlling the body)
+  - creates a body go routine for routing and managing connections.
+  - send a Leg over controlChannel to attach it to the body.
+  - control channel message  { type: "[" attach "|" kill "]", body: body } 
+- body.AttachLeg(l *Leg)
+
+**** spider.leg
+Encapsulates the websocket connection between the body and the browsers. It listens to the websocket and passes any messages to the body.
+- newLeg(ws: websocket): Leg 
+- sendMsg(message)  
+  - sends messages to its Foot (connected browser)
+
