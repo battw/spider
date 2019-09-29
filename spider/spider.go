@@ -1,25 +1,43 @@
 package spider
 
 import (
-	"github.com/battw/spider/spider/parts"
+	"github.com/battw/spider/leg"
 	"github.com/gorilla/websocket"
 	"log"
 )
 
+type id int
+
 type Spider struct {
-	ctrlChan chan<- parts.CtrlMsg
+	in     chan<- leg.LegMsg
+	addLeg chan<- *leg.Leg
 }
 
 func Hatch() *Spider {
-	return &Spider{parts.Body()}
+	in := make(chan leg.LegMsg)
+	legs := make(map[int]*leg.Leg)
+	addLeg := make(chan *leg.Leg)
+
+	go func() {
+		for {
+			select {
+			case msg := <-in:
+				for _, l := range legs {
+					l.SendMsg(msg)
+				}
+			case leg := <-addLeg:
+				legs[leg.Id()] = leg
+				go leg.ListenToClient(in)
+			}
+		}
+	}()
+	return &Spider{in, addLeg}
 }
 
 func (s *Spider) GrowLeg(conn *websocket.Conn) {
-	s.log("growing leg")
-	testMsg := parts.CtrlMsg{Kind: "attach", Body: nil}
-	s.ctrlChan <- testMsg
-	//var lChan chan<- parts.Msg = parts.NewLeg(conn)
-	//s.body.AttachLeg(l)
+	s.log("adding leg")
+	l := leg.NewLeg(conn)
+	s.addLeg <- l
 }
 
 func (s *Spider) log(text interface{}) {
