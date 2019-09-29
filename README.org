@@ -13,17 +13,11 @@ The serverside implementation of the websocket network.
 - spider.Hatch()
 - GrowLeg(*websocket.Conn)
 
-**** spider.body
-Creates and manages connections, and routes traffic.
-- body.Hatch() : controlChannel (A channel for controlling the body)
-  - creates a body go routine for routing and managing connections.
-  - send a Leg over controlChannel to attach it to the body.
-  - control channel message  { type: "[" attach "|" kill "]", body: body } 
-- body.AttachLeg(l *Leg)
-
 **** spider.leg
 Encapsulates the websocket connection between the body and the browsers. It listens to the websocket and passes any messages to the body.
-- newLeg(ws: websocket): Leg 
+- NewLeg(ws: websocket): Leg 
+- go ListenToClient(dest  chan<- msg)
+  - forwards messages received from the client onto "dest"
 - sendMsg(message)  
   - sends messages to its Foot (connected browser)
 
