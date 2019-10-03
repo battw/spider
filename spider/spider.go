@@ -61,29 +61,32 @@ func Broadcast(s *Spider, msg *leg.Msg) {
 }
 
 type mailMsg struct {
-	to      int
-	from    int
-	payload interface{}
+	To      int
+	From    int
+	Payload interface{}
 }
 
 func MailMsg(s *Spider, msg *leg.Msg) {
-	var mm mailMsg
-	if err := json.Unmarshal(msg.Msg, &mm); err != nil {
+	mm := &mailMsg{}
+	if err := json.Unmarshal(msg.Msg, mm); err != nil {
 		s.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
 		return
 	}
+
 	switch {
-	case mm.to == 0: // broadcast message
+	case mm.To == 0:
+		s.log("failed to route message as address 0 is invalid")
+	case mm.To == -1: // broadcast message
 		for _, l := range s.legs {
 			l.SendMsg(msg.Msg)
 		}
-	case mm.to > 0: // send to addressee
-		if l := s.legs[mm.to]; l == nil {
+	case mm.To > 0: // send to addressee
+		if l := s.legs[mm.To]; l != nil {
 			l.SendMsg(msg.Msg)
 		} else {
 			s.log(fmt.Sprintf(
 				"Tried to send message to non-existant address:\n\t %v\n",
-				mm.to))
+				mm.To))
 			return
 		}
 	}
