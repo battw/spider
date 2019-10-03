@@ -1,6 +1,8 @@
 package spider
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/battw/spider/leg"
 	"github.com/gorilla/websocket"
 	"log"
@@ -9,24 +11,26 @@ import (
 type id int
 
 type Spider struct {
-	in        chan<- []byte
+	in        chan<- *leg.Msg
 	addLeg    chan<- *leg.Leg
 	removeLeg chan<- int
 	legs      map[int]*leg.Leg
-	brain     func(map[int]*leg.Leg, []byte)
+	brain     Brain
 }
 
-func Hatch() *Spider {
-	in := make(chan []byte)
+type Brain func(*Spider, *leg.Msg)
+
+func Hatch(b Brain) *Spider {
+	in := make(chan *leg.Msg)
 	legs := make(map[int]*leg.Leg)
 	addLeg := make(chan *leg.Leg)
 	removeLeg := make(chan int)
-	s := &Spider{in, addLeg, removeLeg, legs, Broadcast}
+	s := &Spider{in, addLeg, removeLeg, legs, b}
 	go func() {
 		for {
 			select {
 			case msg := <-in:
-				s.brain(legs, msg)
+				s.brain(s, msg)
 			case leg := <-addLeg:
 				legs[leg.Id()] = leg
 				go leg.ListenToClient(in, removeLeg)
@@ -48,8 +52,39 @@ func (s *Spider) log(text interface{}) {
 	log.Printf("Spider: %v\n", text)
 }
 
-func Broadcast(legs map[int]*leg.Leg, msg []byte) {
-	for _, l := range legs {
-		l.SendMsg(msg)
+// #### BRAINS #### //
+
+func Broadcast(s *Spider, msg *leg.Msg) {
+	for _, l := range s.legs {
+		l.SendMsg(msg.Msg)
+	}
+}
+
+type mailMsg struct {
+	to      int
+	from    int
+	payload interface{}
+}
+
+func MailMsg(s *Spider, msg *leg.Msg) {
+	var mm mailMsg
+	if err := json.Unmarshal(msg.Msg, &mm); err != nil {
+		s.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
+		return
+	}
+	switch {
+	case mm.to == 0: // broadcast message
+		for _, l := range s.legs {
+			l.SendMsg(msg.Msg)
+		}
+	case mm.to > 0: // send to addressee
+		if l := s.legs[mm.to]; l == nil {
+			l.SendMsg(msg.Msg)
+		} else {
+			s.log(fmt.Sprintf(
+				"Tried to send message to non-existant address:\n\t %v\n",
+				mm.to))
+			return
+		}
 	}
 }

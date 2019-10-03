@@ -9,8 +9,9 @@ import (
 
 // main sets up a server providing a web based chat webSocketAdapter on "/"
 func main() {
-	s := spider.Hatch()
+	s := spider.Hatch(spider.MailMsg)
 	http.HandleFunc("/", servePage)
+	http.HandleFunc("/script.js", serveScript)
 	http.HandleFunc("/ws", wsConnect(s))
 	http.ListenAndServe(":5000", nil)
 }
@@ -39,8 +40,12 @@ func wsConnect(s *spider.Spider) func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func serveScript(writer http.ResponseWriter, request *http.Request) {
+	http.ServeFile(writer, request, "mailtest/script.js")
+}
+
 // servePage is an http request handler which serves the webchat web page to a
 // webSocketAdapter.
 func servePage(writer http.ResponseWriter, request *http.Request) {
-	http.ServeFile(writer, request, "pingtest/client.html")
+	http.ServeFile(writer, request, "mailtest/client.html")
 }

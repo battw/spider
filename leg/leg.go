@@ -11,6 +11,11 @@ type Leg struct {
 	conn *websocket.Conn
 }
 
+type Msg struct {
+	From int
+	Msg  []byte
+}
+
 // idChan outputs unique ids in a concurrency safe fashion
 var idChan <-chan int = func() <-chan int {
 	ch := make(chan int)
@@ -36,8 +41,7 @@ func (l *Leg) Id() int {
 }
 
 // listenToClient forwards any messages received from the client into "dest"
-func (l *Leg) ListenToClient(dest chan<- []byte, removeLeg chan<- int) {
-	// REMOVE LEG FROM SPIDER
+func (l *Leg) ListenToClient(dest chan<- *Msg, removeLeg chan<- int) {
 	for {
 		// ReadMessage returns test or binary messages only.
 		// close, ping and pong are handled elsewhere.
@@ -50,7 +54,7 @@ func (l *Leg) ListenToClient(dest chan<- []byte, removeLeg chan<- int) {
 			removeLeg <- l.id
 			break
 		}
-		dest <- msg
+		dest <- &Msg{l.id, msg}
 	}
 }
 
