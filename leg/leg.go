@@ -1,11 +1,10 @@
 package leg
 
 import (
+	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
 )
-
-type LegMsg = string
 
 type Leg struct {
 	id   int
@@ -37,28 +36,27 @@ func (l *Leg) Id() int {
 }
 
 // listenToClient forwards any messages received from the client into "dest"
-func (l *Leg) ListenToClient(dest chan<- LegMsg) {
+func (l *Leg) ListenToClient(dest chan<- []byte, removeLeg chan<- int) {
+	// REMOVE LEG FROM SPIDER
 	for {
-		typ, msg, err := l.conn.ReadMessage()
+		// ReadMessage returns test or binary messages only.
+		// close, ping and pong are handled elsewhere.
+		_, msg, err := l.conn.ReadMessage()
 		l.log("received message from client")
 		if err != nil {
-			log.Printf("failed message read from websocket: %v\n",
-				err)
-			continue
+			l.log(fmt.Sprintf(
+				"message read from websocket returned error: %v\n",
+				err))
+			removeLeg <- l.id
+			break
 		}
-		if typ != websocket.TextMessage {
-			log.Printf(
-				"message read from websocket is of wrong type: %v\n",
-				typ)
-			continue
-		}
-		dest <- string(msg)
+		dest <- msg
 	}
 }
 
 // sendMsg converts msg to json and sends it down the leg.
-func (l *Leg) SendMsg(m LegMsg) {
-	l.log("sending message")
+func (l *Leg) SendMsg(m []byte) {
+	l.log("sending message to client")
 	l.conn.WriteMessage(websocket.TextMessage, []byte(m))
 }
 
