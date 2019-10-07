@@ -21,6 +21,7 @@ window.onload = function () {
     //On receiving a message over the WebSocket, display it
     conn.onmessage = event => {
         const data = JSON.parse(event.data);
+        console.log("message received");
         writeToDiv(output, data.payload);
     };
     
@@ -33,8 +34,21 @@ window.onload = function () {
     conn.onclose = () => {
         writeToDiv(output, "closed websocket");
     };
-
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

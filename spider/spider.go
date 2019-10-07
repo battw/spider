@@ -72,8 +72,11 @@ func MailMsg(s *Spider, msg *leg.Msg) {
 		s.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
 		return
 	}
+	mm.From = msg.From
 
 	switch {
+	case mm.To == 1:
+
 	case mm.To == 0:
 		s.log("failed to route message as address 0 is invalid")
 	case mm.To == -1: // broadcast message
@@ -84,9 +87,10 @@ func MailMsg(s *Spider, msg *leg.Msg) {
 		if l := s.legs[mm.To]; l != nil {
 			l.SendMsg(msg.Msg)
 		} else {
-			s.log(fmt.Sprintf(
-				"Tried to send message to non-existant address:\n\t %v\n",
+			errMsg := []byte(fmt.Sprintf(
+				"{\"payload\": \"Failed to send message no client with id %v\"}",
 				mm.To))
+			s.legs[mm.From].SendMsg(errMsg)
 			return
 		}
 	}
