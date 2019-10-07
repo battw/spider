@@ -5,8 +5,9 @@ window.onload = function () {
     }
 
     const output = document.getElementById("output");
-    const sendButton = document.getElementById("sendbutton");
+    const send = document.getElementById("send");
     const addresses = document.getElementById("addresses");
+    const text = document.getElementById("text");
     const conn = new WebSocket("ws://" + document.location.host + "/ws");
 
     function writeToDiv(div, text) {
@@ -21,19 +22,24 @@ window.onload = function () {
     //On receiving a message over the WebSocket, display it
     conn.onmessage = event => {
         const data = JSON.parse(event.data);
-        console.log("message received");
+        console.log("message received: " + String(data));
         writeToDiv(output, data.payload);
     };
     
     conn.onopen = () => {
         writeToDiv(output, "opened websocket");
-        const msg = {to: 1, payload: "hello"};
-        conn.send(JSON.stringify(msg));
     };
 
     conn.onclose = () => {
         writeToDiv(output, "closed websocket");
     };
+
+    send.onclick = () => {
+        console.log("sending message: " + text.value);
+        const msg = {to: -2, payload: text.value};
+        conn.send(JSON.stringify(msg));
+    };
+        
 };
 
 

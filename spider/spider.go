@@ -73,9 +73,9 @@ func MailMsg(s *Spider, msg *leg.Msg) {
 		return
 	}
 	mm.From = msg.From
+	s.log(fmt.Sprintf("received message from %v to %v\n", mm.From, mm.To))
 
 	switch {
-	case mm.To == 1:
 
 	case mm.To == 0:
 		s.log("failed to route message as address 0 is invalid")
@@ -93,5 +93,15 @@ func MailMsg(s *Spider, msg *leg.Msg) {
 			s.legs[mm.From].SendMsg(errMsg)
 			return
 		}
+	case mm.To == -2:
+		ids := "{\"ids\":["
+		for k, _ := range s.legs {
+			ids += fmt.Sprintf("%v,", k)
+		}
+		// remove the trailing comma and append the parens
+		ids = ids[:len(ids)-1] + "]}"
+		s.log(fmt.Sprintf("Sending ids to %v: %v\n", mm.From, ids))
+		idMsg := []byte(ids)
+		s.legs[mm.From].SendMsg(idMsg)
 	}
 }
