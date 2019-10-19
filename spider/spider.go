@@ -6,9 +6,8 @@ import (
 	"github.com/battw/spider/leg"
 	"github.com/gorilla/websocket"
 	"log"
+	"sort"
 )
-
-type id int
 
 type Spider struct {
 	in        chan<- *leg.Msg
@@ -61,55 +60,79 @@ func Broadcast(s *Spider, msg *leg.Msg) {
 }
 
 const (
-	send = iota + 1
-	broadcast
-	getids
+	mSend = iota + 1
+	mBroadcast
+	mIds
+	mError
 )
 
 type mailMsg struct {
 	Type    int
 	To      int
 	From    int
-	ids     []id
+	Ids     []int
 	Payload interface{}
 }
 
 func MailMsg(s *Spider, msg *leg.Msg) {
-	mm := &mailMsg{}
-	if err := json.Unmarshal(msg.Msg, mm); err != nil {
+	in := &mailMsg{}
+	if err := json.Unmarshal(msg.Msg, in); err != nil {
 		s.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
 		return
 	}
-	mm.From = msg.From
-	s.log(fmt.Sprintf("received message from %v to %v\n", mm.From, mm.To))
+	in.From = msg.From
+	s.log(fmt.Sprintf("received message from %v\n", in.From))
 
-	switch {
-
-	case mm.To == 0:
-		s.log("failed to route message as address 0 is invalid")
-	case mm.To == -1: // broadcast message
-		for _, l := range s.legs {
-			l.SendMsg(msg.Msg)
+	switch in.Type {
+	case mBroadcast:
+		s.log("broadcasting message")
+		for k, l := range s.legs {
+			if out, err := jsonMsg(
+				in.Type, k, in.From, nil, in.Payload); err != nil {
+				s.log(err)
+			} else {
+				l.SendMsg(out)
+			}
 		}
-	case mm.To > 0: // send to addressee
-		if l := s.legs[mm.To]; l != nil {
-			l.SendMsg(msg.Msg)
+	case mSend:
+		if l := s.legs[in.To]; l != nil {
+			if out, err := jsonMsg(
+				in.Type, in.To, in.From, nil, in.Payload); err != nil {
+				s.log(err)
+			} else {
+				s.log(fmt.Sprintf("sending message to ", in.To))
+				l.SendMsg(out)
+			}
 		} else {
-			errMsg := []byte(fmt.Sprintf(
-				"{\"payload\": \"Failed to send message no client with id %v\"}",
-				mm.To))
-			s.legs[mm.From].SendMsg(errMsg)
-			return
+			errMsg := "Failed to send message: no client with id " + string(in.To)
+			if out, err := jsonMsg(
+				in.Type, in.To, in.From, nil, errMsg); err != nil {
+				s.log(fmt.Sprintf("Failed to encode message: %v\n", errMsg))
+			} else {
+				s.legs[in.From].SendMsg([]byte(out))
+			}
 		}
-	case mm.To == -2:
-		ids := "{\"ids\":["
+	case mIds:
+		ids := make([]int, 0, len(s.legs))
 		for k, _ := range s.legs {
-			ids += fmt.Sprintf("%v,", k)
+			if k == in.From {
+				continue
+			}
+			ids = append(ids, k)
 		}
-		// remove the trailing comma and append the parens
-		ids = ids[:len(ids)-1] + "]}"
-		s.log(fmt.Sprintf("Sending ids to %v: %v\n", mm.From, ids))
-		idMsg := []byte(ids)
-		s.legs[mm.From].SendMsg(idMsg)
+		sort.Ints(ids)
+
+		if out, err := jsonMsg(mIds, msg.From, msg.From, ids, msg.Msg); err != nil {
+			s.log(fmt.Sprintf("Failed to encode id message: %v\n", err))
+		} else {
+			s.log(fmt.Sprintf("Sending ids to %v: %v\n", in.From, ids))
+			s.legs[in.From].SendMsg(out)
+		}
 	}
+}
+
+func jsonMsg(typ, to, from int, ids []int, payload interface{}) ([]byte, error) {
+	msg := &mailMsg{typ, to, from, ids, payload}
+	jmsg, err := json.Marshal(msg)
+	return jmsg, err
 }
