@@ -60,9 +60,17 @@ func Broadcast(s *Spider, msg *leg.Msg) {
 	}
 }
 
+const (
+	send = iota + 1
+	broadcast
+	getids
+)
+
 type mailMsg struct {
+	Type    int
 	To      int
 	From    int
+	ids     []id
 	Payload interface{}
 }
 

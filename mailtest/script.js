@@ -24,6 +24,7 @@ window.onload = function () {
         const data = JSON.parse(event.data);
         console.log("message received: " + String(data));
         writeToDiv(output, data.payload);
+        writeToDiv(output, data.ids);
     };
     
     conn.onopen = () => {

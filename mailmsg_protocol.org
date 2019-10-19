@@ -1,0 +1,38 @@
+* MailMsg Protocol Design Doc
+** Requirements  
+*** Primary
+- send addressed messages
+- broadcast messages
+- get addresses of connected clients
+*** Secondary
+- send messages to a subset of clients
+** So
+- messages need a payload i.e. the message
+- include an address
+- "from" address added by server to avoid spoofing
+- message type field ?? 
+
+** What
+*** Send message
+**** Fields
+- to (avoid using 0 as an address as an uninitialised field will default to 0 in the server)
+- payload
+- from (added by server)
+*** Broadcast
+- same form as "send message"
+- might as well use the "to" field to address the broadcast e.g. "to: -1"
+*** Get Ids 
+- to: -2
+- ignore the payload
+- "ids" field in return message
+- if, in the return address the "to" field is addressed for the receiver, then  the client has to determine the intention of the message through analysing the different fields. Would it be better to include a "type" field to avoid ambiguity? 
+
+*** Fields
+- type: send, broadcast, getids...
+- to
+- from
+- payload
+- ids 
+
+
+
