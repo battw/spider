@@ -11,7 +11,8 @@ import (
 func main() {
 	s := spider.Hatch(spider.MailMsg)
 	http.HandleFunc("/", servePage)
-	http.HandleFunc("/script.js", serveScript)
+	http.HandleFunc("/script.mjs", serveScript)
+	http.HandleFunc("/foot.mjs", serveFoot)
 	http.HandleFunc("/ws", wsConnect(s))
 	http.ListenAndServe(":5000", nil)
 }
@@ -41,7 +42,11 @@ func wsConnect(s *spider.Spider) func(http.ResponseWriter, *http.Request) {
 }
 
 func serveScript(writer http.ResponseWriter, request *http.Request) {
-	http.ServeFile(writer, request, "mailtest/script.js")
+	http.ServeFile(writer, request, "mailtest/script.mjs")
+}
+
+func serveFoot(writer http.ResponseWriter, request *http.Request) {
+	http.ServeFile(writer, request, "client/foot.mjs")
 }
 
 // servePage is an http request handler which serves the webchat web page to a
