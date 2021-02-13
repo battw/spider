@@ -1,35 +1,36 @@
-package spider
+package hub
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/battw/spider/leg"
-	"github.com/gorilla/websocket"
 	"log"
 	"sort"
+	"spider/leg"
+
+	"github.com/gorilla/websocket"
 )
 
-type Spider struct {
+type Hub struct {
 	in        chan<- *leg.Msg
 	addLeg    chan<- *leg.Leg
 	removeLeg chan<- int
 	legs      map[int]*leg.Leg
-	brain     Brain
+	router    Router
 }
 
-type Brain func(*Spider, *leg.Msg)
+type Router func(*Hub, *leg.Msg)
 
-func Hatch(b Brain) *Spider {
+func New(router Router) *Hub {
 	in := make(chan *leg.Msg)
 	legs := make(map[int]*leg.Leg)
 	addLeg := make(chan *leg.Leg)
 	removeLeg := make(chan int)
-	s := &Spider{in, addLeg, removeLeg, legs, b}
+	hub := &Hub{in, addLeg, removeLeg, legs, router}
 	go func() {
 		for {
 			select {
 			case msg := <-in:
-				s.brain(s, msg)
+				hub.router(hub, msg)
 			case leg := <-addLeg:
 				legs[leg.Id()] = leg
 				go leg.ListenToClient(in, removeLeg)
@@ -38,22 +39,22 @@ func Hatch(b Brain) *Spider {
 			}
 		}
 	}()
-	return s
+	return hub
 }
 
-func (s *Spider) GrowLeg(conn *websocket.Conn) {
+func (s *Hub) GrowLeg(conn *websocket.Conn) {
 	s.log("adding leg")
 	l := leg.NewLeg(conn)
 	s.addLeg <- l
 }
 
-func (s *Spider) log(text interface{}) {
-	log.Printf("Spider: %v\n", text)
+func (s *Hub) log(text interface{}) {
+	log.Printf("hub: %v\n", text)
 }
 
-// #### BRAINS #### //
+// #### ROUTERS #### //
 
-func Broadcast(s *Spider, msg *leg.Msg) {
+func Broadcast(s *Hub, msg *leg.Msg) {
 	for _, l := range s.legs {
 		l.SendMsg(msg.Msg)
 	}
@@ -74,7 +75,7 @@ type mailMsg struct {
 	Payload interface{}
 }
 
-func MailMsg(s *Spider, msg *leg.Msg) {
+func MailMsg(s *Hub, msg *leg.Msg) {
 	in := &mailMsg{}
 	if err := json.Unmarshal(msg.Msg, in); err != nil {
 		s.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
@@ -100,11 +101,11 @@ func MailMsg(s *Spider, msg *leg.Msg) {
 				in.Type, in.To, in.From, nil, in.Payload); err != nil {
 				s.log(err)
 			} else {
-				s.log(fmt.Sprintf("sending message to ", in.To))
+				s.log(fmt.Sprintf("sending message to %v\n", in.To))
 				l.SendMsg(out)
 			}
 		} else {
-			errMsg := "Failed to send message: no client with id " + string(in.To)
+			errMsg := "Failed to send message: no client with id " + fmt.Sprint(in.To)
 			if out, err := jsonMsg(
 				in.Type, in.To, in.From, nil, errMsg); err != nil {
 				s.log(fmt.Sprintf("Failed to encode message: %v\n", errMsg))

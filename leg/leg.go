@@ -2,8 +2,9 @@ package leg
 
 import (
 	"fmt"
-	"github.com/gorilla/websocket"
 	"log"
+
+	"github.com/gorilla/websocket"
 )
 
 type Leg struct {

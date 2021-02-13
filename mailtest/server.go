@@ -1,15 +1,16 @@
 package main
 
 import (
-	"github.com/battw/spider/spider"
-	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"spider/hub"
+
+	"github.com/gorilla/websocket"
 )
 
 // main sets up a server providing a web based chat webSocketAdapter on "/"
 func main() {
-	s := spider.Hatch(spider.MailMsg)
+	s := hub.New(hub.MailMsg)
 	http.HandleFunc("/", servePage)
 	http.HandleFunc("/script.mjs", serveScript)
 	http.HandleFunc("/foot.mjs", serveFoot)
@@ -18,8 +19,8 @@ func main() {
 }
 
 // wsConnect returns an http request handler which upgrades the connection to a
-// websocket and adds it to the spider.
-func wsConnect(s *spider.Spider) func(http.ResponseWriter, *http.Request) {
+// websocket and adds it to the hub.
+func wsConnect(s *hub.Hub) func(http.ResponseWriter, *http.Request) {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		//upgrade connection
 		var upgrader = websocket.Upgrader{
@@ -46,7 +47,7 @@ func serveScript(writer http.ResponseWriter, request *http.Request) {
 }
 
 func serveFoot(writer http.ResponseWriter, request *http.Request) {
-	http.ServeFile(writer, request, "client/foot.mjs")
+	http.ServeFile(writer, request, "client/client.mjs")
 }
 
 // servePage is an http request handler which serves the webchat web page to a
