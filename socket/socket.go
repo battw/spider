@@ -1,4 +1,4 @@
-package leg
+package socket
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Leg struct {
+type Socket struct {
 	id   int
 	conn *websocket.Conn
 }
@@ -31,18 +31,18 @@ var idChan <-chan int = func() <-chan int {
 }()
 
 // NOTE if toFoot is not read from, it will block its input!
-func NewLeg(conn *websocket.Conn) *Leg {
+func NewLeg(conn *websocket.Conn) *Socket {
 	id := <-idChan
 	log.Printf("newLeg: id = %v\n", id)
-	return &Leg{id, conn}
+	return &Socket{id, conn}
 }
 
-func (l *Leg) Id() int {
+func (l *Socket) Id() int {
 	return l.id
 }
 
 // listenToClient forwards any messages received from the client into "dest"
-func (l *Leg) ListenToClient(dest chan<- *Msg, removeLeg chan<- int) {
+func (l *Socket) ListenToClient(dest chan<- *Msg, removeLeg chan<- int) {
 	for {
 		// ReadMessage returns test or binary messages only.
 		// close, ping and pong are handled elsewhere.
@@ -60,11 +60,11 @@ func (l *Leg) ListenToClient(dest chan<- *Msg, removeLeg chan<- int) {
 }
 
 // sendMsg converts msg to json and sends it down the leg.
-func (l *Leg) SendMsg(m []byte) {
+func (l *Socket) SendMsg(m []byte) {
 	l.log("sending message to client")
 	l.conn.WriteMessage(websocket.TextMessage, []byte(m))
 }
 
-func (l *Leg) log(text interface{}) {
+func (l *Socket) log(text interface{}) {
 	log.Printf("leg %v: %v\n", l.id, text)
 }

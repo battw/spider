@@ -5,73 +5,82 @@ import (
 	"fmt"
 	"log"
 	"sort"
-	"spider/leg"
+
+	"spider/socket"
 
 	"github.com/gorilla/websocket"
 )
 
-// TODO - Consider having a single control channel rather than removeLeg, addLeg etc.
+// TODO - Consider having a single control channel rather than removeSocketChan, addSocketChan etc.
 
 type Hub struct {
-	in        chan *leg.Msg
-	addLeg    chan *leg.Leg
-	removeLeg chan int
-	legs      map[int]*leg.Leg
-	router    Router
+	userMsgChan      chan *socket.Msg
+	addSocketChan    chan *socket.Socket
+	removeSocketChan chan int
+	sockets          map[int]*socket.Socket
+	routeUserMsg     Router
 }
 
-type Router func(*Hub, *leg.Msg)
+type Router func(*Hub, *socket.Msg)
 
 func New(router Router) *Hub {
 
 	hub := &Hub{
-		in:        make(chan *leg.Msg),
-		addLeg:    make(chan *leg.Leg),
-		removeLeg: make(chan int),
-		legs:      make(map[int]*leg.Leg),
-		router:    router,
+		userMsgChan:      make(chan *socket.Msg),
+		addSocketChan:    make(chan *socket.Socket),
+		removeSocketChan: make(chan int),
+		sockets:          make(map[int]*socket.Socket),
+		routeUserMsg:     router,
 	}
 
-	go hub.listen()
+	go hub.handleIncoming()
 
 	return hub
 }
 
-func (hub *Hub) listen() {
+func (hub *Hub) handleIncoming() {
+
+	handleUserMsg := func(userMsg *socket.Msg) {
+		hub.routeUserMsg(hub, userMsg)
+	}
+
+	addSocket := func(socket *socket.Socket) {
+		hub.sockets[socket.Id()] = socket
+		go socket.ListenToClient(hub.userMsgChan, hub.removeSocketChan)
+	}
+
+	deleteSocket := func(id int) {
+		delete(hub.sockets, id)
+	}
 
 	for {
 		select {
-		case msg := <-hub.in:
-			hub.handleUserMsg(msg)
-		case leg := <-hub.addLeg:
-			// TODO - Extract method.
-			hub.legs[leg.Id()] = leg
-			go leg.ListenToClient(hub.in, hub.removeLeg)
-		case id := <-hub.removeLeg:
-			delete(hub.legs, id)
+		case msg := <-hub.userMsgChan:
+			handleUserMsg(msg)
+		case socket := <-hub.addSocketChan:
+			addSocket(socket)
+		case id := <-hub.removeSocketChan:
+			deleteSocket(id)
 		}
 	}
 }
 
-func (hub *Hub) handleUserMsg(userMsg *leg.Msg) {
-	hub.router(hub, userMsg)
-}
-
-// TODO - should hub depend on websocket as well as Leg?
-func (hub *Hub) GrowLeg(conn *websocket.Conn) {
+// TODO - Extract this into external API.
+func (hub *Hub) AddSocket(conn *websocket.Conn) {
 	hub.log("adding leg")
-	l := leg.NewLeg(conn)
-	hub.addLeg <- l
+	l := socket.NewLeg(conn)
+	hub.addSocketChan <- l
 }
 
 func (hub *Hub) log(text interface{}) {
 	log.Printf("hub: %v\n", text)
 }
 
+// TODO move routers somewhere else.
 // #### ROUTERS #### //
 
-func Broadcast(hub *Hub, msg *leg.Msg) {
-	for _, l := range hub.legs {
+func Broadcast(hub *Hub, msg *socket.Msg) {
+	for _, l := range hub.sockets {
 		l.SendMsg(msg.Msg)
 	}
 }
@@ -91,7 +100,8 @@ type mailMsg struct {
 	Payload interface{}
 }
 
-func MailMsg(hub *Hub, msg *leg.Msg) {
+// TODO - WTF is this horrible mess
+func MailMsg(hub *Hub, msg *socket.Msg) {
 	in := &mailMsg{}
 	if err := json.Unmarshal(msg.Msg, in); err != nil {
 		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
@@ -103,7 +113,7 @@ func MailMsg(hub *Hub, msg *leg.Msg) {
 	switch in.Type {
 	case mBroadcast:
 		hub.log("broadcasting message")
-		for k, l := range hub.legs {
+		for k, l := range hub.sockets {
 			if out, err := jsonMsg(
 				in.Type, k, in.From, nil, in.Payload); err != nil {
 				hub.log(err)
@@ -112,7 +122,7 @@ func MailMsg(hub *Hub, msg *leg.Msg) {
 			}
 		}
 	case mSend:
-		if l := hub.legs[in.To]; l != nil {
+		if l := hub.sockets[in.To]; l != nil {
 			if out, err := jsonMsg(
 				in.Type, in.To, in.From, nil, in.Payload); err != nil {
 				hub.log(err)
@@ -126,12 +136,12 @@ func MailMsg(hub *Hub, msg *leg.Msg) {
 				in.Type, in.To, in.From, nil, errMsg); err != nil {
 				hub.log(fmt.Sprintf("Failed to encode message: %v\n", errMsg))
 			} else {
-				hub.legs[in.From].SendMsg([]byte(out))
+				hub.sockets[in.From].SendMsg([]byte(out))
 			}
 		}
 	case mIds:
-		ids := make([]int, 0, len(hub.legs))
-		for k, _ := range hub.legs {
+		ids := make([]int, 0, len(hub.sockets))
+		for k, _ := range hub.sockets {
 			if k == in.From {
 				continue
 			}
@@ -143,7 +153,7 @@ func MailMsg(hub *Hub, msg *leg.Msg) {
 			hub.log(fmt.Sprintf("Failed to encode id message: %v\n", err))
 		} else {
 			hub.log(fmt.Sprintf("Sending ids to %v: %v\n", in.From, ids))
-			hub.legs[in.From].SendMsg(out)
+			hub.sockets[in.From].SendMsg(out)
 		}
 	}
 }

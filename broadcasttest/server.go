@@ -37,7 +37,7 @@ func wsConnect(s *hub.Hub) func(http.ResponseWriter, *http.Request) {
 			log.Println(err)
 			return
 		}
-		s.GrowLeg(conn)
+		s.AddSocket(conn)
 	}
 }
 
