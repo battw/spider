@@ -10,10 +10,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// TODO - Consider having a single control channel rather than removeLeg, addLeg etc.
+
 type Hub struct {
-	in        chan<- *leg.Msg
-	addLeg    chan<- *leg.Leg
-	removeLeg chan<- int
+	in        chan *leg.Msg
+	addLeg    chan *leg.Leg
+	removeLeg chan int
 	legs      map[int]*leg.Leg
 	router    Router
 }
@@ -21,41 +23,55 @@ type Hub struct {
 type Router func(*Hub, *leg.Msg)
 
 func New(router Router) *Hub {
-	in := make(chan *leg.Msg)
-	legs := make(map[int]*leg.Leg)
-	addLeg := make(chan *leg.Leg)
-	removeLeg := make(chan int)
-	hub := &Hub{in, addLeg, removeLeg, legs, router}
-	go func() {
-		for {
-			select {
-			case msg := <-in:
-				hub.router(hub, msg)
-			case leg := <-addLeg:
-				legs[leg.Id()] = leg
-				go leg.ListenToClient(in, removeLeg)
-			case id := <-removeLeg:
-				delete(legs, id)
-			}
-		}
-	}()
+
+	hub := &Hub{
+		in:        make(chan *leg.Msg),
+		addLeg:    make(chan *leg.Leg),
+		removeLeg: make(chan int),
+		legs:      make(map[int]*leg.Leg),
+		router:    router,
+	}
+
+	go hub.listen()
+
 	return hub
 }
 
-func (s *Hub) GrowLeg(conn *websocket.Conn) {
-	s.log("adding leg")
-	l := leg.NewLeg(conn)
-	s.addLeg <- l
+func (hub *Hub) listen() {
+
+	for {
+		select {
+		case msg := <-hub.in:
+			hub.handleUserMsg(msg)
+		case leg := <-hub.addLeg:
+			// TODO - Extract method.
+			hub.legs[leg.Id()] = leg
+			go leg.ListenToClient(hub.in, hub.removeLeg)
+		case id := <-hub.removeLeg:
+			delete(hub.legs, id)
+		}
+	}
 }
 
-func (s *Hub) log(text interface{}) {
+func (hub *Hub) handleUserMsg(userMsg *leg.Msg) {
+	hub.router(hub, userMsg)
+}
+
+// TODO - should hub depend on websocket as well as Leg?
+func (hub *Hub) GrowLeg(conn *websocket.Conn) {
+	hub.log("adding leg")
+	l := leg.NewLeg(conn)
+	hub.addLeg <- l
+}
+
+func (hub *Hub) log(text interface{}) {
 	log.Printf("hub: %v\n", text)
 }
 
 // #### ROUTERS #### //
 
-func Broadcast(s *Hub, msg *leg.Msg) {
-	for _, l := range s.legs {
+func Broadcast(hub *Hub, msg *leg.Msg) {
+	for _, l := range hub.legs {
 		l.SendMsg(msg.Msg)
 	}
 }
@@ -75,47 +91,47 @@ type mailMsg struct {
 	Payload interface{}
 }
 
-func MailMsg(s *Hub, msg *leg.Msg) {
+func MailMsg(hub *Hub, msg *leg.Msg) {
 	in := &mailMsg{}
 	if err := json.Unmarshal(msg.Msg, in); err != nil {
-		s.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
+		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
 		return
 	}
 	in.From = msg.From
-	s.log(fmt.Sprintf("received message from %v\n", in.From))
+	hub.log(fmt.Sprintf("received message from %v\n", in.From))
 
 	switch in.Type {
 	case mBroadcast:
-		s.log("broadcasting message")
-		for k, l := range s.legs {
+		hub.log("broadcasting message")
+		for k, l := range hub.legs {
 			if out, err := jsonMsg(
 				in.Type, k, in.From, nil, in.Payload); err != nil {
-				s.log(err)
+				hub.log(err)
 			} else {
 				l.SendMsg(out)
 			}
 		}
 	case mSend:
-		if l := s.legs[in.To]; l != nil {
+		if l := hub.legs[in.To]; l != nil {
 			if out, err := jsonMsg(
 				in.Type, in.To, in.From, nil, in.Payload); err != nil {
-				s.log(err)
+				hub.log(err)
 			} else {
-				s.log(fmt.Sprintf("sending message to %v\n", in.To))
+				hub.log(fmt.Sprintf("sending message to %v\n", in.To))
 				l.SendMsg(out)
 			}
 		} else {
 			errMsg := "Failed to send message: no client with id " + fmt.Sprint(in.To)
 			if out, err := jsonMsg(
 				in.Type, in.To, in.From, nil, errMsg); err != nil {
-				s.log(fmt.Sprintf("Failed to encode message: %v\n", errMsg))
+				hub.log(fmt.Sprintf("Failed to encode message: %v\n", errMsg))
 			} else {
-				s.legs[in.From].SendMsg([]byte(out))
+				hub.legs[in.From].SendMsg([]byte(out))
 			}
 		}
 	case mIds:
-		ids := make([]int, 0, len(s.legs))
-		for k, _ := range s.legs {
+		ids := make([]int, 0, len(hub.legs))
+		for k, _ := range hub.legs {
 			if k == in.From {
 				continue
 			}
@@ -124,10 +140,10 @@ func MailMsg(s *Hub, msg *leg.Msg) {
 		sort.Ints(ids)
 
 		if out, err := jsonMsg(mIds, msg.From, msg.From, ids, msg.Msg); err != nil {
-			s.log(fmt.Sprintf("Failed to encode id message: %v\n", err))
+			hub.log(fmt.Sprintf("Failed to encode id message: %v\n", err))
 		} else {
-			s.log(fmt.Sprintf("Sending ids to %v: %v\n", in.From, ids))
-			s.legs[in.From].SendMsg(out)
+			hub.log(fmt.Sprintf("Sending ids to %v: %v\n", in.From, ids))
+			hub.legs[in.From].SendMsg(out)
 		}
 	}
 }
