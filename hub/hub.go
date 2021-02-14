@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"spider/socket"
-
+	// TODO - encapsulate all gorilla/websocket access in socket.go
 	"github.com/gorilla/websocket"
 )
 
@@ -65,7 +65,7 @@ func (hub *Hub) handleIncoming() {
 	}
 }
 
-// TODO - Extract this into external API.
+// TODO - Extract this into socket.
 func (hub *Hub) AddSocket(conn *websocket.Conn) {
 	hub.log("adding leg")
 	l := socket.NewSocket(conn)
