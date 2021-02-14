@@ -14,19 +14,19 @@ import (
 // TODO - Consider having a single control channel rather than removeSocketChan, addSocketChan etc.
 
 type Hub struct {
-	userMsgChan      chan *socket.Msg
+	userMsgChan      chan *socket.UserMsg
 	addSocketChan    chan *socket.Socket
 	removeSocketChan chan int
 	sockets          map[int]*socket.Socket
 	routeUserMsg     Router
 }
 
-type Router func(*Hub, *socket.Msg)
+type Router func(*Hub, *socket.UserMsg)
 
 func New(router Router) *Hub {
 
 	hub := &Hub{
-		userMsgChan:      make(chan *socket.Msg),
+		userMsgChan:      make(chan *socket.UserMsg),
 		addSocketChan:    make(chan *socket.Socket),
 		removeSocketChan: make(chan int),
 		sockets:          make(map[int]*socket.Socket),
@@ -40,7 +40,7 @@ func New(router Router) *Hub {
 
 func (hub *Hub) handleIncoming() {
 
-	handleUserMsg := func(userMsg *socket.Msg) {
+	handleUserMsg := func(userMsg *socket.UserMsg) {
 		hub.routeUserMsg(hub, userMsg)
 	}
 
@@ -68,7 +68,7 @@ func (hub *Hub) handleIncoming() {
 // TODO - Extract this into external API.
 func (hub *Hub) AddSocket(conn *websocket.Conn) {
 	hub.log("adding leg")
-	l := socket.NewLeg(conn)
+	l := socket.NewSocket(conn)
 	hub.addSocketChan <- l
 }
 
@@ -79,7 +79,7 @@ func (hub *Hub) log(text interface{}) {
 // TODO move routers somewhere else.
 // #### ROUTERS #### //
 
-func Broadcast(hub *Hub, msg *socket.Msg) {
+func Broadcast(hub *Hub, msg *socket.UserMsg) {
 	for _, l := range hub.sockets {
 		l.SendMsg(msg.Msg)
 	}
@@ -101,13 +101,13 @@ type mailMsg struct {
 }
 
 // TODO - WTF is this horrible mess
-func MailMsg(hub *Hub, msg *socket.Msg) {
+func MailMsg(hub *Hub, msg *socket.UserMsg) {
 	in := &mailMsg{}
 	if err := json.Unmarshal(msg.Msg, in); err != nil {
 		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
 		return
 	}
-	in.From = msg.From
+	in.From = msg.SenderID
 	hub.log(fmt.Sprintf("received message from %v\n", in.From))
 
 	switch in.Type {
@@ -149,7 +149,7 @@ func MailMsg(hub *Hub, msg *socket.Msg) {
 		}
 		sort.Ints(ids)
 
-		if out, err := jsonMsg(mIds, msg.From, msg.From, ids, msg.Msg); err != nil {
+		if out, err := jsonMsg(mIds, msg.SenderID, msg.SenderID, ids, msg.Msg); err != nil {
 			hub.log(fmt.Sprintf("Failed to encode id message: %v\n", err))
 		} else {
 			hub.log(fmt.Sprintf("Sending ids to %v: %v\n", in.From, ids))

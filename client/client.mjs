@@ -1,12 +1,12 @@
 /**
-  Creates a Foot object, which is the client end-point for a browser websocket 
+  Creates a SpiderClient object, which is the client end-point for a browser websocket 
   network. 
-  Send messages with foot.send()
+  Send messages with client.send()
   Get a list of the ids of the other connected clients with getids.
   You will need to register a handler for the response using regIdhandler(f).
   Register a handling function for incoming messages with regmsghandler(f)
 **/
-export function Foot() {
+export function SpiderClient() {
     if (!window["WebSocket"]) {
         console.error("Browser doesn't support websockets. Exiting script");
         return null;

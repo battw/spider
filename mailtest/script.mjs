@@ -1,7 +1,7 @@
-import { Foot } from "../foot.mjs";
+import { SpiderClient } from "../spiderclient.mjs";
 
 window.onload = function () {
-    const foot = Foot();
+    const spider = SpiderClient();
 
     const output = document.getElementById("output");
     const sendButton = document.getElementById("sendButton");
@@ -18,14 +18,14 @@ window.onload = function () {
 
     displayMsg("initiating mail test");
 
-    foot.regMsgHandler(
+    spider.regMsgHandler(
         obj => {
             console.log("received mail");
             displayMsg(obj);
         }
     );
 
-    foot.regIdHandler(
+    spider.regIdHandler(
         ids => {
             console.log("received ids");
 
@@ -50,17 +50,17 @@ window.onload = function () {
     sendButton.onclick = () => {
         console.log("sending message: " + text.value);
         const to = Number(addresses.children[addresses.selectedIndex].value);
-        foot.send(text.value, to);
+        spider.send(text.value, to);
     };
 
     broadcastButton.onclick = () => {
         console.log("broadcasting message: " + text.value);
-        foot.broadcast(text.value);
+        spider.broadcast(text.value);
     };
 
     idButton.onclick = () => {
         console.log("fetching ids");
-        foot.requestIds();
+        spider.requestIds();
     };
 };
 
