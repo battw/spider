@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 
 	"spider/socket"
-	// TODO - encapsulate all gorilla/websocket access in socket.go
-	"github.com/gorilla/websocket"
 )
 
 // TODO - Consider having a single control channel rather than removeSocketChan, addSocketChan etc.
@@ -65,11 +64,9 @@ func (hub *Hub) handleIncoming() {
 	}
 }
 
-// TODO - Extract this into socket.
-func (hub *Hub) AddSocket(conn *websocket.Conn) {
-	hub.log("adding leg")
-	l := socket.NewSocket(conn)
-	hub.addSocketChan <- l
+func (hub *Hub) AddSocket(socket *socket.Socket) {
+	hub.log("adding socket " + strconv.Itoa(socket.Id()))
+	hub.addSocketChan <- socket
 }
 
 func (hub *Hub) log(text interface{}) {
@@ -78,7 +75,6 @@ func (hub *Hub) log(text interface{}) {
 
 // TODO move routers somewhere else.
 // #### ROUTERS #### //
-
 func Broadcast(hub *Hub, msg *socket.UserMsg) {
 	for _, l := range hub.sockets {
 		l.SendMsg(msg.Msg)
@@ -104,11 +100,11 @@ type mailMsg struct {
 func MailMsg(hub *Hub, msg *socket.UserMsg) {
 	in := &mailMsg{}
 	if err := json.Unmarshal(msg.Msg, in); err != nil {
-		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v\n", err))
+		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v", err))
 		return
 	}
 	in.From = msg.SenderID
-	hub.log(fmt.Sprintf("received message from %v\n", in.From))
+	hub.log(fmt.Sprintf("received message from %v", in.From))
 
 	switch in.Type {
 	case mBroadcast:
@@ -127,14 +123,14 @@ func MailMsg(hub *Hub, msg *socket.UserMsg) {
 				in.Type, in.To, in.From, nil, in.Payload); err != nil {
 				hub.log(err)
 			} else {
-				hub.log(fmt.Sprintf("sending message to %v\n", in.To))
+				hub.log(fmt.Sprintf("sending message to %v", in.To))
 				l.SendMsg(out)
 			}
 		} else {
 			errMsg := "Failed to send message: no client with id " + fmt.Sprint(in.To)
 			if out, err := jsonMsg(
 				in.Type, in.To, in.From, nil, errMsg); err != nil {
-				hub.log(fmt.Sprintf("Failed to encode message: %v\n", errMsg))
+				hub.log(fmt.Sprintf("Failed to encode message: %v", errMsg))
 			} else {
 				hub.sockets[in.From].SendMsg([]byte(out))
 			}
@@ -150,9 +146,9 @@ func MailMsg(hub *Hub, msg *socket.UserMsg) {
 		sort.Ints(ids)
 
 		if out, err := jsonMsg(mIds, msg.SenderID, msg.SenderID, ids, msg.Msg); err != nil {
-			hub.log(fmt.Sprintf("Failed to encode id message: %v\n", err))
+			hub.log(fmt.Sprintf("Failed to encode id message: %v", err))
 		} else {
-			hub.log(fmt.Sprintf("Sending ids to %v: %v\n", in.From, ids))
+			hub.log(fmt.Sprintf("Sending ids to %v: %v", in.From, ids))
 			hub.sockets[in.From].SendMsg(out)
 		}
 	}
