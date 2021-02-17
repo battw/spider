@@ -75,86 +75,107 @@ func (hub *Hub) log(text interface{}) {
 
 // TODO move routers somewhere else.
 // #### ROUTERS #### //
-func Broadcast(hub *Hub, msg *socket.UserMsg) {
+func BroadcastMsg(hub *Hub, msg *socket.UserMsg) {
 	for _, l := range hub.sockets {
 		l.SendMsg(msg.Msg)
 	}
 }
 
+type msgType int
+
 const (
-	mSend = iota + 1
-	mBroadcast
-	mIds
-	mError
+	send msgType = iota + 1
+	broadcast
+	fetchIds
 )
 
 type mailMsg struct {
-	Type    int
-	To      int
-	From    int
-	Ids     []int
-	Payload interface{}
+	MsgType       msgType
+	DestinationID int
+	SenderID      int
+	Ids           []int
+	Payload       interface{}
 }
 
-// TODO - WTF is this horrible mess
-func MailMsg(hub *Hub, msg *socket.UserMsg) {
-	in := &mailMsg{}
-	if err := json.Unmarshal(msg.Msg, in); err != nil {
-		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg:\n\t %v", err))
+type handleFuncType = func(*Hub, *mailMsg)
+
+var handleFuncMap = map[msgType]handleFuncType{
+	send:      sendMsg,
+	broadcast: broadcastMsg,
+	fetchIds:  sendIds,
+}
+
+func (msg *mailMsg) String() string {
+	return fmt.Sprintf("mailMsg {MsgType: %v, DestinationID: %v, SenderID: %v, Ids: %v, Payload: %v}",
+		msg.MsgType, msg.DestinationID, msg.SenderID, msg.Ids, msg.Payload)
+}
+
+//TODO - Should the broadcast message a special case of send? Should send take a list of destinationIds instead?
+func RouteMailMsg(hub *Hub, msg *socket.UserMsg) {
+	incomingMsg := &mailMsg{}
+	if err := json.Unmarshal(msg.Msg, incomingMsg); err != nil {
+		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg: %v", err))
 		return
 	}
-	in.From = msg.SenderID
-	hub.log(fmt.Sprintf("received message from %v", in.From))
+	incomingMsg.SenderID = msg.SenderID
+	hub.log(fmt.Sprintf("received message from %v", incomingMsg.SenderID))
+	hub.log(fmt.Sprintf("message as string: %v", string(msg.Msg)))
+	hub.log(fmt.Sprintf("message as mailMsg: %v", incomingMsg))
 
-	switch in.Type {
-	case mBroadcast:
-		hub.log("broadcasting message")
-		for k, l := range hub.sockets {
-			if out, err := jsonMsg(
-				in.Type, k, in.From, nil, in.Payload); err != nil {
-				hub.log(err)
-			} else {
-				l.SendMsg(out)
-			}
-		}
-	case mSend:
-		if l := hub.sockets[in.To]; l != nil {
-			if out, err := jsonMsg(
-				in.Type, in.To, in.From, nil, in.Payload); err != nil {
-				hub.log(err)
-			} else {
-				hub.log(fmt.Sprintf("sending message to %v", in.To))
-				l.SendMsg(out)
-			}
-		} else {
-			errMsg := "Failed to send message: no client with id " + fmt.Sprint(in.To)
-			if out, err := jsonMsg(
-				in.Type, in.To, in.From, nil, errMsg); err != nil {
-				hub.log(fmt.Sprintf("Failed to encode message: %v", errMsg))
-			} else {
-				hub.sockets[in.From].SendMsg([]byte(out))
-			}
-		}
-	case mIds:
-		ids := make([]int, 0, len(hub.sockets))
-		for k, _ := range hub.sockets {
-			if k == in.From {
-				continue
-			}
-			ids = append(ids, k)
-		}
-		sort.Ints(ids)
+	handleFuncMap[incomingMsg.MsgType](hub, incomingMsg)
+}
 
-		if out, err := jsonMsg(mIds, msg.SenderID, msg.SenderID, ids, msg.Msg); err != nil {
-			hub.log(fmt.Sprintf("Failed to encode id message: %v", err))
+func broadcastMsg(hub *Hub, msg *mailMsg) {
+	hub.log("broadcasting message")
+	for k, l := range hub.sockets {
+		if out, err := jsonMsg(
+			msg.MsgType, k, msg.SenderID, nil, msg.Payload); err != nil {
+			hub.log(err)
 		} else {
-			hub.log(fmt.Sprintf("Sending ids to %v: %v", in.From, ids))
-			hub.sockets[in.From].SendMsg(out)
+			l.SendMsg(out)
 		}
 	}
 }
 
-func jsonMsg(typ, to, from int, ids []int, payload interface{}) ([]byte, error) {
+func sendMsg(hub *Hub, msg *mailMsg) {
+	if recieverSocket := hub.sockets[msg.DestinationID]; recieverSocket != nil {
+		if out, err := jsonMsg(
+			msg.MsgType, msg.DestinationID, msg.SenderID, nil, msg.Payload); err != nil {
+			hub.log(err)
+		} else {
+			hub.log(fmt.Sprintf("sending message to %v", msg.DestinationID))
+			recieverSocket.SendMsg(out)
+		}
+	} else {
+		errMsg := "Failed to send message: no client with id " + fmt.Sprint(msg.DestinationID)
+		if out, err := jsonMsg(
+			msg.MsgType, msg.DestinationID, msg.SenderID, nil, errMsg); err != nil {
+			hub.log(fmt.Sprintf("Failed to encode message: %v", errMsg))
+		} else {
+			hub.sockets[msg.SenderID].SendMsg([]byte(out))
+		}
+	}
+}
+
+func sendIds(hub *Hub, msg *mailMsg) {
+	ids := make([]int, 0, len(hub.sockets))
+	for k := range hub.sockets {
+		if k == msg.SenderID {
+			continue
+		}
+		ids = append(ids, k)
+	}
+	sort.Ints(ids)
+
+	if out, err := jsonMsg(fetchIds, msg.SenderID, msg.SenderID, ids, nil); err != nil {
+		hub.log(fmt.Sprintf("Failed to encode id message: %v", err))
+	} else {
+		hub.log(fmt.Sprintf("Sending ids to %v: %v", msg.SenderID, ids))
+		hub.sockets[msg.SenderID].SendMsg(out)
+	}
+}
+
+func jsonMsg(typ msgType, to, from int, ids []int, payload interface{}) ([]byte, error) {
 	msg := &mailMsg{typ, to, from, ids, payload}
 	jmsg, err := json.Marshal(msg)
 	return jmsg, err

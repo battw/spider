@@ -2,9 +2,9 @@
   Creates a SpiderClient object, which is the client end-point for a browser websocket 
   network. 
   Send messages with client.send()
-  Get a list of the ids of the other connected clients with getids.
-  You will need to register a handler for the response using regIdhandler(f).
-  Register a handling function for incoming messages with regmsghandler(f)
+  Get a list of the ids of the other connected clients with getIds.
+  You will need to register a handler for the response using regIdHandler(f).
+  Register a handling function for incoming messages with regMsgHandler(f)
 **/
 export function SpiderClient() {
     if (!window["WebSocket"]) {
@@ -17,6 +17,7 @@ export function SpiderClient() {
         broadcast: 2,
         getIds: 3
     };
+
     let conn = new WebSocket("ws://" + document.location.host + "/ws");
     let idHandler = null;
     let msgHandler = null; 
@@ -31,7 +32,7 @@ export function SpiderClient() {
 
     conn.onmessage = event => {
         const data = JSON.parse(event.data);
-        switch (data.Type) {
+        switch (data.MsgType) {
         case msgType.send:
         case msgType.broadcast:
             if (msgHandler !== null) {
@@ -54,21 +55,21 @@ export function SpiderClient() {
     /** send a message to the client whose id is "to". 
         "msg" is whatever you want **/
     function send(msg, to) {
-        const msgObj = {Type: msgType.send, To: to, Payload: msg};
+        const msgObj = {MsgType: msgType.send, DestinationID: to, Payload: msg};
         conn.send(JSON.stringify(msgObj));
     }
 
     /** send "msg" to all clients connected to the network. 
         "msg" is whatever you want **/
     function broadcast(msg) {
-        const msgObj = {Type: msgType.broadcast, Payload: msg};
+        const msgObj = {MsgType: msgType.broadcast, Payload: msg};
         conn.send(JSON.stringify(msgObj));
     }
 
     /** request a list of the current client ids from the server. 
         to handle to reply call regIdhandler(f) with an appropriate function. **/
     function requestIds() {
-        const msg = {Type: msgType.getIds};
+        const msg = {MsgType: msgType.getIds};
         conn.send(JSON.stringify(msg));
     }
 

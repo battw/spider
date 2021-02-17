@@ -7,7 +7,7 @@ import (
 
 // main sets up a server providing a web based chat webSocketAdapter on "/"
 func main() {
-	server := server.New(hub.MailMsg)
+	server := server.New(hub.RouteMailMsg)
 	server.RegisterRoute("/", "mailtest/client.html")
 	server.RegisterRoute("/script.mjs", "mailtest/script.mjs")
 	// TODO - Should this route be specified in the server?
