@@ -73,7 +73,7 @@ func (hub *Hub) log(text interface{}) {
 	log.Printf("hub: %v\n", text)
 }
 
-// TODO move routers somewhere else.
+// TODO move routers somewhere else by creating a proper API for Hub.
 // #### ROUTERS #### //
 func BroadcastMsg(hub *Hub, msg *socket.UserMsg) {
 	for _, l := range hub.sockets {
@@ -110,21 +110,33 @@ func (msg *mailMsg) String() string {
 		msg.MsgType, msg.DestinationID, msg.SenderID, msg.Ids, msg.Payload)
 }
 
-//TODO - Should the broadcast message a special case of send? Should send take a list of destinationIds instead?
-func RouteMailMsg(hub *Hub, msg *socket.UserMsg) {
-	incomingMsg := &mailMsg{}
-	if err := json.Unmarshal(msg.Msg, incomingMsg); err != nil {
-		hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg: %v", err))
-		return
+//TODO - Should the broadcast message be a special case of send? Should send take a list of destinationIds instead?
+func HandleMailMsg(hub *Hub, incomingMsg *socket.UserMsg) {
+	msg, err := unpackMailMsg(hub, incomingMsg)
+	if err == nil {
+		routeMailMsg(hub, msg)
+	} else {
+		logUnpackError(hub, err)
 	}
-	incomingMsg.SenderID = msg.SenderID
-	hub.log(fmt.Sprintf("received message from %v", incomingMsg.SenderID))
-	hub.log(fmt.Sprintf("message as string: %v", string(msg.Msg)))
-	hub.log(fmt.Sprintf("message as mailMsg: %v", incomingMsg))
-
-	handleFuncMap[incomingMsg.MsgType](hub, incomingMsg)
 }
 
+func routeMailMsg(hub *Hub, msg *mailMsg) {
+	hub.log(fmt.Sprintf("received message from %v: %v", msg.SenderID, msg))
+	handleFuncMap[msg.MsgType](hub, msg)
+}
+
+func unpackMailMsg(hub *Hub, msg *socket.UserMsg) (*mailMsg, error) {
+	unpackedMsg := &mailMsg{}
+	unpackedMsg.SenderID = msg.SenderID
+	err := json.Unmarshal(msg.Msg, unpackedMsg)
+	return unpackedMsg, err
+}
+
+func logUnpackError(hub *Hub, err error) {
+	hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg: %v", err))
+}
+
+// TODO clean me
 func broadcastMsg(hub *Hub, msg *mailMsg) {
 	hub.log("broadcasting message")
 	for k, l := range hub.sockets {
@@ -137,6 +149,7 @@ func broadcastMsg(hub *Hub, msg *mailMsg) {
 	}
 }
 
+// TODO clean me
 func sendMsg(hub *Hub, msg *mailMsg) {
 	if recieverSocket := hub.sockets[msg.DestinationID]; recieverSocket != nil {
 		if out, err := jsonMsg(
@@ -157,6 +170,7 @@ func sendMsg(hub *Hub, msg *mailMsg) {
 	}
 }
 
+// TODO clean me
 func sendIds(hub *Hub, msg *mailMsg) {
 	ids := make([]int, 0, len(hub.sockets))
 	for k := range hub.sockets {
@@ -175,8 +189,8 @@ func sendIds(hub *Hub, msg *mailMsg) {
 	}
 }
 
-func jsonMsg(typ msgType, to, from int, ids []int, payload interface{}) ([]byte, error) {
-	msg := &mailMsg{typ, to, from, ids, payload}
-	jmsg, err := json.Marshal(msg)
-	return jmsg, err
+func jsonMsg(typeCode msgType, destinationID, senderID int, ids []int, payload interface{}) ([]byte, error) {
+	msg := &mailMsg{typeCode, destinationID, senderID, ids, payload}
+	jsonMsg, err := json.Marshal(msg)
+	return jsonMsg, err
 }
