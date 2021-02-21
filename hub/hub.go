@@ -69,6 +69,16 @@ func (hub *Hub) AddSocket(socket *socket.Socket) {
 	hub.addSocketChan <- socket
 }
 
+func (hub *Hub) GetSocket(id int) (*socket.Socket, error) {
+	socket := hub.sockets[id]
+	var err error = nil
+	if socket == nil {
+		err = fmt.Errorf("socket %v does not exist", id)
+		hub.log(err.Error())
+	}
+	return socket, err
+}
+
 func (hub *Hub) log(text interface{}) {
 	log.Printf("hub: %v\n", text)
 }
@@ -84,9 +94,10 @@ func BroadcastMsg(hub *Hub, msg *socket.UserMsg) {
 type msgType int
 
 const (
-	send msgType = iota + 1
-	broadcast
-	fetchIds
+	sendType msgType = iota + 1
+	broadcastType
+	fetchIdsType
+	errorType
 )
 
 type mailMsg struct {
@@ -100,9 +111,9 @@ type mailMsg struct {
 type handleFuncType = func(*Hub, *mailMsg)
 
 var handleFuncMap = map[msgType]handleFuncType{
-	send:      sendMsg,
-	broadcast: broadcastMsg,
-	fetchIds:  sendIds,
+	sendType:      handleSendMsg,
+	broadcastType: broadcastMsg,
+	fetchIdsType:  sendIds,
 }
 
 func (msg *mailMsg) String() string {
@@ -149,25 +160,47 @@ func broadcastMsg(hub *Hub, msg *mailMsg) {
 	}
 }
 
-// TODO clean me
-func sendMsg(hub *Hub, msg *mailMsg) {
-	if recieverSocket := hub.sockets[msg.DestinationID]; recieverSocket != nil {
-		if out, err := jsonMsg(
-			msg.MsgType, msg.DestinationID, msg.SenderID, nil, msg.Payload); err != nil {
-			hub.log(err)
-		} else {
-			hub.log(fmt.Sprintf("sending message to %v", msg.DestinationID))
-			recieverSocket.SendMsg(out)
-		}
-	} else {
-		errMsg := "Failed to send message: no client with id " + fmt.Sprint(msg.DestinationID)
-		if out, err := jsonMsg(
-			msg.MsgType, msg.DestinationID, msg.SenderID, nil, errMsg); err != nil {
-			hub.log(fmt.Sprintf("Failed to encode message: %v", errMsg))
-		} else {
-			hub.sockets[msg.SenderID].SendMsg([]byte(out))
-		}
+func handleSendMsg(hub *Hub, msg *mailMsg) {
+	err := sendMsg(hub, msg)
+	if err != nil {
+		errorMsg := createSendErrorMsg(msg, err)
+		sendMsg(hub, errorMsg)
 	}
+}
+
+func createSendErrorMsg(failedMsg *mailMsg, err error) *mailMsg {
+	return &mailMsg{
+		MsgType:       errorType,
+		DestinationID: failedMsg.SenderID,
+		Payload:       err.Error(),
+	}
+}
+
+func sendMsg(hub *Hub, msg *mailMsg) error {
+	var returnError error = nil
+	jsonMsg, packError := packAsJSON(msg)
+	socket, sockError := hub.GetSocket(msg.DestinationID)
+	if packError == nil && sockError == nil {
+		hub.log(fmt.Sprintf("sending message to %v", msg.DestinationID))
+		socket.SendMsg(jsonMsg)
+	} else {
+		returnError = fmt.Errorf("packing: %v  &  socket: %v", packError, sockError)
+	}
+	return returnError
+}
+
+func packAsJSON(msg *mailMsg) ([]byte, error) {
+	json, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Failed to convert mailMsg to JSON: (%v), (%v)", msg, err)
+	}
+	return json, err
+}
+
+func jsonMsg(typeCode msgType, destinationID, senderID int, ids []int, payload interface{}) ([]byte, error) {
+	msg := &mailMsg{typeCode, destinationID, senderID, ids, payload}
+	jsonMsg, err := json.Marshal(msg)
+	return jsonMsg, err
 }
 
 // TODO clean me
@@ -181,16 +214,10 @@ func sendIds(hub *Hub, msg *mailMsg) {
 	}
 	sort.Ints(ids)
 
-	if out, err := jsonMsg(fetchIds, msg.SenderID, msg.SenderID, ids, nil); err != nil {
+	if out, err := jsonMsg(fetchIdsType, msg.SenderID, msg.SenderID, ids, nil); err != nil {
 		hub.log(fmt.Sprintf("Failed to encode id message: %v", err))
 	} else {
 		hub.log(fmt.Sprintf("Sending ids to %v: %v", msg.SenderID, ids))
 		hub.sockets[msg.SenderID].SendMsg(out)
 	}
-}
-
-func jsonMsg(typeCode msgType, destinationID, senderID int, ids []int, payload interface{}) ([]byte, error) {
-	msg := &mailMsg{typeCode, destinationID, senderID, ids, payload}
-	jsonMsg, err := json.Marshal(msg)
-	return jsonMsg, err
 }
