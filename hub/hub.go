@@ -127,7 +127,9 @@ func HandleMailMsg(hub *Hub, incomingMsg *socket.UserMsg) {
 	if err == nil {
 		routeMailMsg(hub, msg)
 	} else {
+		//TODO - this call should be in unpackMailMsg.
 		logUnpackError(hub, err)
+		// TODO - if routing fails here, an error message should be sent to the sender.
 	}
 }
 
@@ -163,12 +165,12 @@ func broadcastMsg(hub *Hub, msg *mailMsg) {
 func handleSendMsg(hub *Hub, msg *mailMsg) {
 	err := sendMsg(hub, msg)
 	if err != nil {
-		errorMsg := createSendErrorMsg(msg, err)
+		errorMsg := newSendErrorMsg(msg, err)
 		sendMsg(hub, errorMsg)
 	}
 }
 
-func createSendErrorMsg(failedMsg *mailMsg, err error) *mailMsg {
+func newSendErrorMsg(failedMsg *mailMsg, err error) *mailMsg {
 	return &mailMsg{
 		MsgType:       errorType,
 		DestinationID: failedMsg.SenderID,
@@ -177,19 +179,21 @@ func createSendErrorMsg(failedMsg *mailMsg, err error) *mailMsg {
 }
 
 func sendMsg(hub *Hub, msg *mailMsg) error {
-	var returnError error = nil
-	jsonMsg, packError := packAsJSON(msg)
-	socket, sockError := hub.GetSocket(msg.DestinationID)
-	if packError == nil && sockError == nil {
-		hub.log(fmt.Sprintf("sending message to %v", msg.DestinationID))
-		socket.SendMsg(jsonMsg)
-	} else {
-		returnError = fmt.Errorf("packing: %v  &  socket: %v", packError, sockError)
+	packedMsg, err := packMailMsg(msg)
+	if err != nil {
+		return err
 	}
-	return returnError
+
+	socket, err := hub.GetSocket(msg.DestinationID)
+	if err != nil {
+		return err
+	}
+
+	socket.SendMsg(packedMsg)
+	return nil
 }
 
-func packAsJSON(msg *mailMsg) ([]byte, error) {
+func packMailMsg(msg *mailMsg) ([]byte, error) {
 	json, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("Failed to convert mailMsg to JSON: (%v), (%v)", msg, err)
