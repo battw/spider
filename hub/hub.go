@@ -124,24 +124,32 @@ func (msg *mailMsg) String() string {
 //TODO - Should the broadcast message be a special case of send? Should send take a list of destinationIds instead?
 func HandleMailMsg(hub *Hub, incomingMsg *socket.UserMsg) {
 	msg, err := unpackMailMsg(hub, incomingMsg)
-	if err == nil {
-		routeMailMsg(hub, msg)
-	} else {
-		//TODO - this call should be in unpackMailMsg.
-		logUnpackError(hub, err)
-		// TODO - if routing fails here, an error message should be sent to the sender.
+	if err != nil {
+		sendErrorMsg(hub, msg.SenderID, err)
+		return
 	}
+
+	routeMailMsg(hub, msg)
 }
 
 func routeMailMsg(hub *Hub, msg *mailMsg) {
-	hub.log(fmt.Sprintf("received message from %v: %v", msg.SenderID, msg))
+	logMsgReceived(hub, msg)
 	handleFuncMap[msg.MsgType](hub, msg)
+}
+
+func logMsgReceived(hub *Hub, msg *mailMsg) {
+	hub.log(fmt.Sprintf("received message from %v: %v", msg.SenderID, msg))
 }
 
 func unpackMailMsg(hub *Hub, msg *socket.UserMsg) (*mailMsg, error) {
 	unpackedMsg := &mailMsg{}
 	unpackedMsg.SenderID = msg.SenderID
+
 	err := json.Unmarshal(msg.Msg, unpackedMsg)
+	if err != nil {
+		logUnpackError(hub, err)
+	}
+
 	return unpackedMsg, err
 }
 
@@ -165,15 +173,20 @@ func broadcastMsg(hub *Hub, msg *mailMsg) {
 func handleSendMsg(hub *Hub, msg *mailMsg) {
 	err := sendMsg(hub, msg)
 	if err != nil {
-		errorMsg := newSendErrorMsg(msg, err)
-		sendMsg(hub, errorMsg)
+		sendErrorMsg(hub, msg.SenderID, err)
 	}
 }
 
-func newSendErrorMsg(failedMsg *mailMsg, err error) *mailMsg {
+func sendErrorMsg(hub *Hub, destinationID int, err error) {
+	errorMsg := newErrorMsg(destinationID, err)
+	// Doesn't handle the error which may be returned by this function as there is nothing to do.
+	sendMsg(hub, errorMsg)
+}
+
+func newErrorMsg(destinationID int, err error) *mailMsg {
 	return &mailMsg{
 		MsgType:       errorType,
-		DestinationID: failedMsg.SenderID,
+		DestinationID: destinationID,
 		Payload:       err.Error(),
 	}
 }
@@ -196,11 +209,17 @@ func sendMsg(hub *Hub, msg *mailMsg) error {
 func packMailMsg(msg *mailMsg) ([]byte, error) {
 	json, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("Failed to convert mailMsg to JSON: (%v), (%v)", msg, err)
+		logPackingError(msg, err)
 	}
+
 	return json, err
 }
 
+func logPackingError(msg *mailMsg, err error) {
+	log.Printf("Failed to convert mailMsg to JSON: (%v), (%v)", msg, err)
+}
+
+// TODO - Delete this.Replace all calls to this with calls to packMailMsg().
 func jsonMsg(typeCode msgType, destinationID, senderID int, ids []int, payload interface{}) ([]byte, error) {
 	msg := &mailMsg{typeCode, destinationID, senderID, ids, payload}
 	jsonMsg, err := json.Marshal(msg)
