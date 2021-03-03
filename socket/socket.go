@@ -1,6 +1,9 @@
 package socket
 
+// TODO - CLEAN ME
+
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -54,11 +57,11 @@ func upgradeToWebsocket(writer http.ResponseWriter, request *http.Request) (*web
 	return upgrader.Upgrade(writer, request, nil)
 }
 
-func (sock *Socket) Id() int {
+func (sock *Socket) ID() int {
 	return sock.id
 }
 
-// listenToClient forwards any messages received from the client into "dest"
+// ListenToClient forwards any messages received from the client into the "destination" channel.
 func (sock *Socket) ListenToClient(destination chan<- *UserMsg, removeLeg chan<- int) {
 	for {
 		// ReadMessage returns test or binary messages only.
@@ -74,10 +77,13 @@ func (sock *Socket) ListenToClient(destination chan<- *UserMsg, removeLeg chan<-
 	}
 }
 
-// sendMsg converts msg to json and sends it down the leg.
-func (sock *Socket) SendMsg(m []byte) {
-	sock.log("sending message to client")
-	sock.conn.WriteMessage(websocket.TextMessage, []byte(m))
+func (sock *Socket) SendMsg(msg []byte) {
+	sock.logMsgSend(msg)
+	sock.conn.WriteMessage(websocket.TextMessage, []byte(msg))
+}
+
+func (sock *Socket) logMsgSend(msg []byte) {
+	sock.log(fmt.Sprintf("sending message to client: %v", string(msg)))
 }
 
 func (sock *Socket) log(text interface{}) {

@@ -1,3 +1,6 @@
+// TODO - CLEAN ME
+// TODO - improve logging
+
 /**
   Creates a SpiderClient object, which is the client end-point for a browser websocket 
   network. 
@@ -31,6 +34,7 @@ export function SpiderClient() {
     };
 
     conn.onmessage = event => {
+        console.log("incoming message")
         const data = JSON.parse(event.data);
         switch (data.MsgType) {
         case msgType.send:
@@ -43,7 +47,7 @@ export function SpiderClient() {
             break;
         case msgType.getIds:
             if (idHandler !== null) {
-                idHandler(data.Ids);
+                idHandler(data.IDs);
             } else {
                 console.error("ids received but idHandler hasn't been registered");
             }
