@@ -6,7 +6,7 @@ window.onload = function () {
     const output = document.getElementById("output");
     const sendButton = document.getElementById("sendButton");
     const broadcastButton = document.getElementById("broadcastButton");
-    const idButton = document.getElementById("idButton");
+    const IDButton = document.getElementById("IDButton");
     const addresses = document.getElementById("addresses");
     const text = document.getElementById("text");
 
@@ -25,21 +25,21 @@ window.onload = function () {
         }
     );
 
-    spider.regIdHandler(
-        ids => {
-            console.log("received ids");
+    spider.regIDHandler(
+        IDs => {
+            console.log("received IDs");
 
-            // remove current id options 
+            // remove current ID options 
             while (addresses.lastChild) {
                 addresses.lastChild.remove();
             }
 
-            // create new id options
-            ids.forEach(
-                (id) => {
+            // create new ID options
+            IDs.forEach(
+                (ID) => {
                     const opt = document.createElement("option");
-                    opt.value = id;
-                    opt.textContent = id;
+                    opt.value = ID;
+                    opt.textContent = ID;
                     addresses.append(opt);
                 }
             );
@@ -49,8 +49,8 @@ window.onload = function () {
 
     sendButton.onclick = () => {
         console.log("sending message: " + text.value);
-        const to = Number(addresses.children[addresses.selectedIndex].value);
-        spider.send(text.value, to);
+        const destinationID = Number(addresses.children[addresses.selectedIndex].value);
+        spider.send(text.value, destinationID);
     };
 
     broadcastButton.onclick = () => {
@@ -58,9 +58,9 @@ window.onload = function () {
         spider.broadcast(text.value);
     };
 
-    idButton.onclick = () => {
-        console.log("fetching ids");
-        spider.requestIds();
+    IDButton.onclick = () => {
+        console.log("fetching IDs");
+        spider.requestIDs();
     };
 };
 
