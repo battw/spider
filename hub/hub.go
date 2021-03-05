@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 
 	"spider/socket"
@@ -98,6 +99,8 @@ func (hub *Hub) getSocketIDs() []int {
 		IDs = append(IDs, ID)
 	}
 
+	sort.Ints(IDs)
+
 	hub.logGetIDs(IDs)
 
 	return IDs
@@ -190,7 +193,7 @@ func broadcastMsg(hub *Hub, msg *mailMsg) {
 
 	logMsgBroadcast(hub, msg)
 
-	for ID := range hub.getSocketIDs() {
+	for _, ID := range hub.getSocketIDs() {
 
 		msg := &mailMsg{
 			MsgType:       broadcastType,
