@@ -19,18 +19,22 @@ export function SpiderClient() {
     // These are set by the user for a specific application
     let IDMsgHandler = null
     let peerMsgHandler = null
+    let broadcastMsgHandler = null
+    let errorMsgHandler = null
 
 
     const msgType = {
         send: 1,
         broadcast: 2,
-        getIDs: 3
+        getIDs: 3,
+        error: 4,
     }
 
     let msgHandler = new Map([
         [msgType.send, handlePeerMsg],
-        [msgType.broadcast, handlePeerMsg],
-        [msgType.getIDs, handleIDMsg]
+        [msgType.broadcast, handleBroadcastMsg],
+        [msgType.getIDs, handleIDMsg],
+        [msgType.error, handleErrorMsg],
     ])
 
 
@@ -52,9 +56,25 @@ export function SpiderClient() {
 
     function handlePeerMsg(msg) {
         if (peerMsgHandler !== null) {
-            peerMsgHandler(msg)
+            peerMsgHandler(msg.Payload, msg.SenderID)
         } else {
             console.error("message received but msgHandler hasn't been registered")
+        }
+    }
+
+    function handleBroadcastMsg(msg) {
+        if (broadcastMsgHandler !== null) {
+            broadcastMsgHandler(msg.Payload, msg.SenderID)
+        } else {
+            console.error("broadcast message received but broadcastMsgHandler hasn't been registered")
+        }
+    }
+
+    function handleErrorMsg(msg) {
+        if (errorMsgHandler !== null) {
+            errorMsgHandler(msg.Payload)
+        } else {
+            console.error("error message received but errorMsgHandler hasn't been registered")
         }
     }
 
@@ -98,12 +118,22 @@ export function SpiderClient() {
         peerMsgHandler = handler
     }
 
+    function regBroadcastMsgHandler(handler) {
+        broadcastMsgHandler = handler
+    }
+
+    function regErrorMsgHandler(handler) {
+        errorMsgHandler = handler
+    }
+
     return {
         send: send,
         broadcast: broadcast,
         requestIDs: requestIDs,
-        regIDHandler: regIDMsgHandler,
-        regMsgHandler: regPeerMsgHandler
+        regIDMsgHandler: regIDMsgHandler,
+        regPeerMsgHandler: regPeerMsgHandler,
+        regBroadcastMsgHandler: regBroadcastMsgHandler,
+        regErrorMsgHandler: regErrorMsgHandler,
     }
 }
 

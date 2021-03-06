@@ -79,7 +79,8 @@ func (hub *Hub) GetSocket(id int) (*socket.Socket, error) {
 
 	var err error = nil
 	if socket == nil {
-		err = hub.newSocketExistenceError(id)
+		err = hub.newInvalidIDError(id)
+		// TODO - improve this error message.
 		hub.log(err.Error())
 	}
 
@@ -87,7 +88,7 @@ func (hub *Hub) GetSocket(id int) (*socket.Socket, error) {
 }
 
 // TODO find a shorter name for this.
-func (hub *Hub) newSocketExistenceError(socketID int) error {
+func (hub *Hub) newInvalidIDError(socketID int) error {
 	return fmt.Errorf("socket %v does not exist", socketID)
 }
 
@@ -156,7 +157,7 @@ func HandleMailMsg(hub *Hub, incomingMsg *socket.UserMsg) {
 
 	msg, err := unpackMailMsg(hub, incomingMsg)
 	if err != nil {
-		sendErrorMsg(hub, msg.SenderID, err)
+		sendErrorMsg(hub, msg.SenderID, "failed to unpack message.")
 		return
 	}
 
@@ -214,22 +215,22 @@ func handleSendMsg(hub *Hub, msg *mailMsg) {
 
 	err := sendMsg(hub, msg)
 	if err != nil {
-		sendErrorMsg(hub, msg.SenderID, err)
+		sendErrorMsg(hub, msg.SenderID, "failed to send message.")
 	}
 }
 
-func sendErrorMsg(hub *Hub, destinationID int, err error) {
+func sendErrorMsg(hub *Hub, destinationID int, errorString string) {
 
-	errorMsg := newErrorMsg(destinationID, err)
+	errorMsg := newErrorMsg(destinationID, errorString)
 	sendMsg(hub, errorMsg)
 }
 
-func newErrorMsg(destinationID int, err error) *mailMsg {
+func newErrorMsg(destinationID int, errorString string) *mailMsg {
 
 	return &mailMsg{
 		MsgType:       errorType,
 		DestinationID: destinationID,
-		Payload:       err.Error(),
+		Payload:       errorString,
 	}
 }
 
@@ -260,7 +261,7 @@ func packMailMsg(msg *mailMsg) ([]byte, error) {
 }
 
 func logPackingError(msg *mailMsg, err error) {
-	log.Printf("Failed to convert mailMsg to JSON: (%v), (%v)", msg, err)
+	log.Printf("failed to convert mailMsg to JSON: (%v), (%v)", msg, err)
 }
 
 func sendIDs(hub *Hub, msg *mailMsg) {
