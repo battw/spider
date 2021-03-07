@@ -18,28 +18,28 @@ window.onload = function () {
 
     displayMsg("initiating mail test")
 
-    spider.regPeerMsgHandler(
+    spider.registerPeerMsgHandler(
         (msg, senderID) => {
             console.log("received message")
             displayMsg(msg, senderID)
         }
     )
 
-    spider.regBroadcastMsgHandler(
+    spider.registerBroadcastMsgHandler(
         (msg, senderID) => {
             console.log("received broadcast message")
             displayMsg(msg, senderID)
         }
     )
 
-    spider.regErrorMsgHandler(
+    spider.registerErrorMsgHandler(
         msg => {
             console.log("received error message")
             displayMsg(msg, "error")
         }
     )
 
-    spider.regIDMsgHandler(
+    spider.registerIDMsgHandler(
         IDs => {
             console.log("received IDs")
 

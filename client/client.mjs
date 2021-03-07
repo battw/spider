@@ -108,21 +108,21 @@ export function SpiderClient() {
     }
 
     /** "handler" should be a function which accepts an array of numbers **/
-    function regIDMsgHandler(handler) {
+    function registerIDMsgHandler(handler) {
         IDMsgHandler = handler
     }
 
     /** "handler" should be a function which accepts an object (the object 
         type is the same as the messages you are sending with SpiderClient.send(msg)) **/
-    function regPeerMsgHandler(handler) {
+    function registerPeerMsgHandler(handler) {
         peerMsgHandler = handler
     }
 
-    function regBroadcastMsgHandler(handler) {
+    function registerBroadcastMsgHandler(handler) {
         broadcastMsgHandler = handler
     }
 
-    function regErrorMsgHandler(handler) {
+    function registerErrorMsgHandler(handler) {
         errorMsgHandler = handler
     }
 
@@ -130,10 +130,10 @@ export function SpiderClient() {
         send: send,
         broadcast: broadcast,
         requestIDs: requestIDs,
-        regIDMsgHandler: regIDMsgHandler,
-        regPeerMsgHandler: regPeerMsgHandler,
-        regBroadcastMsgHandler: regBroadcastMsgHandler,
-        regErrorMsgHandler: regErrorMsgHandler,
+        registerIDMsgHandler: registerIDMsgHandler,
+        registerPeerMsgHandler: registerPeerMsgHandler,
+        registerBroadcastMsgHandler: registerBroadcastMsgHandler,
+        registerErrorMsgHandler: registerErrorMsgHandler,
     }
 }
 
