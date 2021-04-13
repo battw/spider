@@ -10,8 +10,6 @@ import (
 	"spider/socket"
 )
 
-// TODO - Consider having a single control channel rather than removeSocketChan, addSocketChan etc.
-
 type Hub struct {
 	userMsgChan      chan *socket.UserMsg
 	addSocketChan    chan *socket.Socket
@@ -80,14 +78,12 @@ func (hub *Hub) GetSocket(id int) (*socket.Socket, error) {
 	var err error = nil
 	if socket == nil {
 		err = hub.newInvalidIDError(id)
-		// TODO - improve this error message.
 		hub.log(err.Error())
 	}
 
 	return socket, err
 }
 
-// TODO find a shorter name for this.
 func (hub *Hub) newInvalidIDError(socketID int) error {
 	return fmt.Errorf("socket %v does not exist", socketID)
 }
@@ -115,13 +111,7 @@ func (hub *Hub) log(text interface{}) {
 	log.Printf("hub: %v\n", text)
 }
 
-// TODO move routers somewhere else by creating a proper API for Hub.
-// #### ROUTERS #### //
-func BroadcastMsg(hub *Hub, msg *socket.UserMsg) {
-	for _, l := range hub.sockets {
-		l.SendMsg(msg.Msg)
-	}
-}
+// TODO move router somewhere else by creating a proper API for Hub.
 
 type msgType int
 
@@ -143,9 +133,9 @@ type mailMsg struct {
 type handleFuncType = func(*Hub, *mailMsg)
 
 var handleFuncMap = map[msgType]handleFuncType{
-	sendType:      handleSendMsg,
-	broadcastType: broadcastMsg,
-	fetchIdsType:  sendIDs,
+	sendType:      handleSend,
+	broadcastType: handleBroadcast,
+	fetchIdsType:  handleIDs,
 }
 
 func (msg *mailMsg) String() string {
@@ -178,6 +168,8 @@ func unpackMailMsg(hub *Hub, msg *socket.UserMsg) (*mailMsg, error) {
 	unpackedMsg := &mailMsg{}
 	unpackedMsg.SenderID = msg.SenderID
 
+	/* TODO - message might not return an error but be wrong e.g. have 0 == senderID == destinationID.
+	This should be checked */
 	err := json.Unmarshal(msg.Msg, unpackedMsg)
 	if err != nil {
 		logUnpackError(hub, err)
@@ -190,7 +182,7 @@ func logUnpackError(hub *Hub, err error) {
 	hub.log(fmt.Sprintf("cannot unmarshal json as MailMsg: %v", err))
 }
 
-func broadcastMsg(hub *Hub, msg *mailMsg) {
+func handleBroadcast(hub *Hub, msg *mailMsg) {
 
 	logMsgBroadcast(hub, msg)
 
@@ -211,8 +203,7 @@ func logMsgBroadcast(hub *Hub, msg *mailMsg) {
 	hub.log(fmt.Sprintf("broadcasting message: %v", msg))
 }
 
-func handleSendMsg(hub *Hub, msg *mailMsg) {
-
+func handleSend(hub *Hub, msg *mailMsg) {
 	err := sendMsg(hub, msg)
 	if err != nil {
 		sendErrorMsg(hub, msg.SenderID, "failed to send message.")
@@ -220,13 +211,11 @@ func handleSendMsg(hub *Hub, msg *mailMsg) {
 }
 
 func sendErrorMsg(hub *Hub, destinationID int, errorString string) {
-
 	errorMsg := newErrorMsg(destinationID, errorString)
 	sendMsg(hub, errorMsg)
 }
 
 func newErrorMsg(destinationID int, errorString string) *mailMsg {
-
 	return &mailMsg{
 		MsgType:       errorType,
 		DestinationID: destinationID,
@@ -264,7 +253,7 @@ func logPackingError(msg *mailMsg, err error) {
 	log.Printf("failed to convert mailMsg to JSON: (%v), (%v)", msg, err)
 }
 
-func sendIDs(hub *Hub, msg *mailMsg) {
+func handleIDs(hub *Hub, msg *mailMsg) {
 
 	var IDs []int = hub.getSocketIDs()
 

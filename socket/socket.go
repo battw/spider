@@ -1,7 +1,5 @@
 package socket
 
-// TODO - CLEAN ME
-
 import (
 	"fmt"
 	"log"
@@ -10,11 +8,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Socket is a wrapper around a websocket connection to a client.
 type Socket struct {
 	id   int
 	conn *websocket.Conn
 }
 
+// UserMsg contains a message as raw bytes and the socket ID of the sender.
 type UserMsg struct {
 	SenderID int
 	Msg      []byte
@@ -33,6 +33,7 @@ var idChan <-chan int = func() <-chan int {
 	return ch
 }()
 
+// New constructs a socket object with a unique ID.
 func New(writer http.ResponseWriter, request *http.Request) (*Socket, error) {
 
 	conn, err := upgradeToWebsocket(writer, request)
@@ -57,24 +58,33 @@ func upgradeToWebsocket(writer http.ResponseWriter, request *http.Request) (*web
 	return upgrader.Upgrade(writer, request, nil)
 }
 
+// ID is the identification number for this socket.
 func (sock *Socket) ID() int {
 	return sock.id
 }
 
 // ListenToClient forwards any messages received from the client into the "destination" channel.
-func (sock *Socket) ListenToClient(destination chan<- *UserMsg, removeLeg chan<- int) {
+func (sock *Socket) ListenToClient(destination chan<- *UserMsg, removeSocket chan<- int) {
 	for {
 		// ReadMessage returns test or binary messages only.
 		// close, ping and pong are handled elsewhere.
 		_, msg, err := sock.conn.ReadMessage()
-		sock.log("received message from client")
+		sock.logMsgReceived()
 		if err != nil {
-			sock.log("message read from websocket returned error: " + err.Error())
-			removeLeg <- sock.id
+			sock.logWebsocketError(err)
+			removeSocket <- sock.id
 			break
 		}
 		destination <- &UserMsg{sock.id, msg}
 	}
+}
+
+func (sock *Socket) logMsgReceived() {
+	sock.log("received message from client")
+}
+
+func (sock *Socket) logWebsocketError(err error) {
+	sock.log("message read from websocket returned error: " + err.Error())
 }
 
 func (sock *Socket) SendMsg(msg []byte) {
