@@ -2,12 +2,13 @@
 // TODO - only the payload of a message should be passed to the user callbacks
 
 /**
-  Creates a SpiderClient object, which is the client end-point for a browser websocket 
+  Creates a SpiderClient object, which is the client end-point for an n-to-n browser messaging
   network. 
-  Send messages with client.send()
-  Get a list of the ids of the other connected clients with getIds.
-  You will need to register a handler for the response using regIdHandler(f).
-  Register a handling function for incoming messages with regMsgHandler(f)
+  
+  How to Use
+  1. Register handlers for incoming messages using the "register(ID|Peer|Broadcast|Error)+MsgHandler" functions.
+  2. Request the IDs of the other clients on the network using "requestIds".
+  3. Send a message using "send".
 **/
 export function SpiderClient() {
     if (!window["WebSocket"]) {
@@ -37,6 +38,7 @@ export function SpiderClient() {
         [msgType.error, handleErrorMsg],
     ])
 
+    // Register websocket callbacks:
 
     conn.onopen = () => {
         console.log("opened websocket")
@@ -53,6 +55,8 @@ export function SpiderClient() {
 
         msgHandler.get(msg.MsgType)(msg)
     }
+
+    // Handlers for incoming messages:
 
     function handlePeerMsg(msg) {
         if (peerMsgHandler !== null) {
@@ -86,15 +90,17 @@ export function SpiderClient() {
         }
     }
     
-    /** send a message to the client whose id is "to". 
-        "msg" is whatever you want **/
+    // User functions:
+
+    /** send a message to the client with the given id. 
+        "msg" is anything that can be serialised using JSON.stringify(). **/
     function send(msg, destinationID) {
         const packedMsg = { MsgType: msgType.send, DestinationID: destinationID, Payload: msg }
         conn.send(JSON.stringify(packedMsg))
     }
 
     /** send "msg" to all clients connected to the network. 
-        "msg" is whatever you want **/
+        "msg" is anything that can be serialised using JSON.stringify(). **/
     function broadcast(msg) {
         const packedMsg = { MsgType: msgType.broadcast, Payload: msg }
         conn.send(JSON.stringify(packedMsg))
@@ -107,7 +113,8 @@ export function SpiderClient() {
         conn.send(JSON.stringify(msg))
     }
 
-    /** "handler" should be a function which accepts an array of numbers **/
+    /** "handler" should be a function which accepts an array of numbers representing the
+     *  IDs of the other clients on the network. **/
     function registerIDMsgHandler(handler) {
         IDMsgHandler = handler
     }
@@ -118,10 +125,13 @@ export function SpiderClient() {
         peerMsgHandler = handler
     }
 
+    /** "handler" should be a function which accepts an object (the object 
+        type is the same as the messages you are sending with SpiderClient.send(msg)) **/
     function registerBroadcastMsgHandler(handler) {
         broadcastMsgHandler = handler
     }
 
+    /** "handler" should be a function which accepts a string. */
     function registerErrorMsgHandler(handler) {
         errorMsgHandler = handler
     }
