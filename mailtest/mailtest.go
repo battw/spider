@@ -1,13 +1,12 @@
 package main
 
 import (
-	"github.com/battw/spider/hub"
 	"github.com/battw/spider/server"
 )
 
 // main sets up a server providing a web based chat webSocketAdapter on "/"
 func main() {
-	server := server.New(hub.HandleMailMsg)
+	server := server.New()
 	server.RegisterRoute("/", "mailtest/client.html")
 	server.RegisterRoute("/script.mjs", "mailtest/script.mjs")
 	// TODO - Should this route be specified in the server?

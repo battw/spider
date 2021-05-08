@@ -13,8 +13,8 @@ import (
 
 type Server struct{}
 
-func New(userMsgRouter hub.Router) *Server {
-	theHub := hub.New(userMsgRouter)
+func New() *Server {
+	theHub := hub.New(hub.HandleMailMsg)
 	http.HandleFunc("/ws", wsConnect(theHub))
 	return &Server{}
 }
@@ -32,6 +32,7 @@ func (server *Server) RegisterRoute(URLExtension string, filepath string) {
 
 func (server *Server) Run(port int) {
 	portString := ":" + strconv.Itoa(port)
+	log.Printf("Starting server on port: %v\n", port)
 	http.ListenAndServe(portString, nil)
 }
 
