@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strconv"
 
-	"spider/socket"
+	"github.com/battw/spider/socket"
 )
 
 type Hub struct {

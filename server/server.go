@@ -5,9 +5,10 @@ package server
 import (
 	"log"
 	"net/http"
-	"spider/hub"
-	"spider/socket"
 	"strconv"
+
+	"github.com/battw/spider/hub"
+	"github.com/battw/spider/socket"
 )
 
 type Server struct{}
