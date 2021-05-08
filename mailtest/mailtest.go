@@ -1,8 +1,8 @@
 package main
 
 import (
-	"spider/hub"
-	"spider/server"
+	"github.com/battw/spider/hub"
+	"github.com/battw/spider/server"
 )
 
 // main sets up a server providing a web based chat webSocketAdapter on "/"

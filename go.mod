@@ -1,4 +1,4 @@
-module spider
+module github.com/battw/spider
 
 go 1.15
 
