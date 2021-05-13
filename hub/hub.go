@@ -257,6 +257,8 @@ func handleIDs(hub *Hub, msg *mailMsg) {
 
 	var IDs []int = hub.getSocketIDs()
 
+	IDs = removeX(IDs, msg.SenderID)
+
 	IDMsg := &mailMsg{
 		MsgType:       fetchIdsType,
 		DestinationID: msg.SenderID,
@@ -265,4 +267,21 @@ func handleIDs(hub *Hub, msg *mailMsg) {
 	}
 
 	sendMsg(hub, IDMsg)
+}
+
+func removeX(slice []int, x int) []int {
+
+	var xIndex = -1
+
+	for i := range slice {
+		if slice[i] == x {
+			xIndex = i
+		}
+	}
+
+	if xIndex != -1 {
+		slice = append(slice[:xIndex], slice[xIndex+1:]...)
+	}
+
+	return slice
 }
